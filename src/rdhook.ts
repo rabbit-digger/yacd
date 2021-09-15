@@ -65,7 +65,7 @@ hookFunction(WebSocket.prototype, 'addEventListener', function (this: WebSocket,
             upload: value.upload,
             download: value.download,
             start: new Date(value.start_time * 1000).toUTCString(),
-            chains: value.ctx.net_list,
+            chains: value.ctx.net_list.reverse(),
             metadata: {
               network: value.protocol,
               type: 'Unknown',
@@ -86,7 +86,6 @@ hookFunction(WebSocket.prototype, 'addEventListener', function (this: WebSocket,
         } as any);
       }
 
-      console.log('ready', this.readyState)
       if (!CLOSED.get(this)) {
         setTimeout(poll, 1000);
       }
