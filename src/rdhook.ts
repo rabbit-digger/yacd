@@ -73,7 +73,7 @@ const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
         upload: value.upload,
         download: value.download,
         start: new Date(value.start_time * 1000).toUTCString(),
-        chains: value.ctx.net_list.reverse(),
+        chains: [...value.ctx.net_list].reverse(),
         metadata: {
           network: value.protocol,
           type: 'Unknown',
