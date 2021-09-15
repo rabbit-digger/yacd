@@ -1,3 +1,4 @@
+import './rdhook';
 import 'modern-normalize/modern-normalize.css';
 import './misc/i18n';
 
