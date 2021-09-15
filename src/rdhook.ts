@@ -1,6 +1,8 @@
+import { applyPatch } from 'fast-json-patch';
+
 import { ConnectionItem } from './api/connections';
 
-type ConnectionResp = Record<string, {
+type ConnectionBody = Record<string, {
   protocol: 'tcp' | 'udp',
   addr: string,
   start_time: number,
@@ -11,7 +13,8 @@ type ConnectionResp = Record<string, {
   upload: number,
   download: number,
 }>;
-type ExtendFunc<T> = T extends (this: infer S, ...args: infer A) => infer R ? (opts: {
+type ConnectionResp = { full: ConnectionBody, patch: undefined } | { full: undefined, patch: any[] };
+type ExtendFunc<T> = T extends (...args: infer A) => infer R ? (opts: {
   origin: T,
   next: () => ReturnType<T>,
 }, ...args: A) => R : never;
@@ -39,61 +42,75 @@ const parseAddress = (s: string) => {
   return { host, port };
 }
 
-const CLOSED = new WeakMap<WebSocket, boolean>();
-hookFunction(WebSocket.prototype, 'close', function (this: WebSocket) {
-  CLOSED.set(this, true);
+const LastFull = new WeakMap<WebSocket, ConnectionBody>();
+const OriginWebsocket = WebSocket;
+const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
+  const last = LastFull.get(self)
+  let conn: ConnectionBody;
+  if (resp.patch && last) {
+    conn = applyPatch(last, resp.patch).newDocument;
+  } else if (resp.full) {
+    conn = resp.full;
+  } else {
+    console.log(resp, last)
+    throw new TypeError('Wrong state');
+  }
+  LastFull.set(self, conn);
+
+  const clashData: {
+    downloadTotal: number,
+    uploadTotal: number,
+    connections: ConnectionItem[],
+  } = {
+    downloadTotal: 0,
+    uploadTotal: 0,
+    connections: Object.entries(conn).map(([key, value]) => {
+      const src = parseAddress(value.ctx.source_address);
+      const dst = parseAddress(value.addr);
+
+      return {
+        id: key,
+        upload: value.upload,
+        download: value.download,
+        start: new Date(value.start_time * 1000).toUTCString(),
+        chains: value.ctx.net_list.reverse(),
+        metadata: {
+          network: value.protocol,
+          type: 'Unknown',
+          sourceIP: src.host,
+          sourcePort: src.port,
+          destinationIP: dst.host,
+          destinationPort: dst.port,
+          host: dst.host,
+        },
+        rule: 'RabbitDigger'
+      }
+    }),
+  };
+
+  return clashData;
+}
+window.WebSocket = new Proxy(OriginWebsocket, {
+  construct(Target, [url, protocol]) {
+    const newUrl = new URL(url);
+    if (newUrl.pathname === '/connections') {
+      newUrl.pathname = '/api/connection';
+      newUrl.search = '?patch=true';
+    }
+    console.log('new ws', url);
+
+    return new Target(newUrl, protocol);
+  }
 });
-hookFunction(WebSocket.prototype, 'addEventListener', function (this: WebSocket, { next }, event, callback) {
-  const { pathname, protocol, host } = new URL(this.url);
-  if (pathname === '/connections' && event === 'message') {
-    const poll = async () => {
-      const resp = await fetch(`${protocol.replace('ws', 'http')}//${host}/api/connection`);
-      const conn: ConnectionResp = await resp.json();
-      const clashData: {
-        downloadTotal: number,
-        uploadTotal: number,
-        connections: ConnectionItem[],
-      } = {
-        downloadTotal: 0,
-        uploadTotal: 0,
-        connections: Object.entries(conn).map(([key, value]) => {
-          const src = parseAddress(value.ctx.source_address);
-          const dst = parseAddress(value.addr);
-
-          return {
-            id: key,
-            upload: value.upload,
-            download: value.download,
-            start: new Date(value.start_time * 1000).toUTCString(),
-            chains: value.ctx.net_list.reverse(),
-            metadata: {
-              network: value.protocol,
-              type: 'Unknown',
-              sourceIP: src.host,
-              sourcePort: src.port,
-              destinationIP: dst.host,
-              destinationPort: dst.port,
-              host: dst.host,
-            },
-            rule: 'RabbitDigger'
-          }
-        }),
-      };
-
+hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebSocket, { next, origin }, event, callback) {
+  const { pathname } = new URL(this.url);
+  if (pathname === '/api/connection' && event === 'message') {
+    return origin.call(this, 'message', (e: MessageEvent) => {
       if (typeof callback === 'function') {
-        callback({
-          data: JSON.stringify(clashData)
-        } as any);
+        const resp = rdConn2ClashConn(this, JSON.parse(e.data));
+        callback({ data: JSON.stringify(resp) } as any);
       }
-
-      if (!CLOSED.get(this)) {
-        setTimeout(poll, 1000);
-      }
-    };
-    poll();
-    console.log('addEventListener called', pathname)
-    // callback
-    return;
+    });
   }
   return next()
 });
