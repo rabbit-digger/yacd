@@ -170,32 +170,49 @@ hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebS
   }
   return next()
 });
+interface HookItem {
+  test: (url: string) => boolean
+  replace: () => Promise<string>
+}
+const HookMap: HookItem[] = [{
+  test: (url: string) => new URL(url).pathname === '/configs',
+  replace: async () => JSON.stringify({
+    port: 0,
+    'socks-port': 0,
+    'redir-port': 0,
+    'tproxy-port': 0,
+    'mixed-port': 114514,
+    authentication: [],
+    'allow-lan': false,
+    'bind-address': '*',
+    mode: 'rule',
+    'log-level': 'silent',
+    ipv6: false,
+  }),
+}, {
+  test: (url: string) => new URL(url).pathname === '/rules',
+  replace: async () => JSON.stringify({
+    rules: [{
+      type: 'Match',
+      payload: 'RabbitDigger规则不支持查看',
+      proxy: 'RabbitDigger',
+    }],
+  }),
+}, {
+  test: (url: string) => new URL(url).pathname === '/version',
+  replace: async () => JSON.stringify({
+    version: 'rabbit-digger 0.1.0',
+    premium: false,
+  }),
+}]
+
 hookFunction(window, 'fetch', async ({ next }, url) => {
   if (typeof url === 'string') {
-    const urlObj = new URL(url);
-    if (urlObj.pathname === '/configs') {
-      return new Response(JSON.stringify({
-        "port": 0,
-        "socks-port": 0,
-        "redir-port": 0,
-        "tproxy-port": 0,
-        "mixed-port": 114514,
-        "authentication": [],
-        "allow-lan": false,
-        "bind-address": "*",
-        "mode": "rule",
-        "log-level": "silent",
-        "ipv6": false
-      }));
-    } else if (urlObj.pathname === '/rules') {
-      return new Response(JSON.stringify({
-        "rules": [{
-          "type": "Match",
-          "payload": "RabbitDigger规则不支持查看",
-          "proxy": "RabbitDigger",
-        }]
-      }));
+    for (const { test, replace } of HookMap) {
+      if (test(url)) {
+        return new Response(await replace())
+      }
     }
   }
-  return next()
-});
+  return await next()
+})
