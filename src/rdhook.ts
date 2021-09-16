@@ -66,14 +66,13 @@ const rdConn2Traffic = (self: WebSocket, resp: ConnectionResp) => {
   LastFull.set(self, conn);
 
   const lastTotal = LastTotal.get(self);
-  if (!lastTotal) {
-    LastTotal.set(self, { total_download: 0, total_upload: 0 });
-    return { up: 0, down: 0 }
-  }
   LastTotal.set(self, {
     total_download: conn.total_download,
     total_upload: conn.total_upload,
   });
+  if (!lastTotal) {
+    return { up: 0, down: 0 }
+  }
 
   return {
     up: conn.total_upload - lastTotal.total_upload,
