@@ -7,7 +7,9 @@ type ConnectionBody = Record<string, {
   addr: string,
   start_time: number,
   ctx: {
-    source_address?: string,
+    src_socket_addr?: string,
+    dest_socket_addr?: string,
+    dest_domain?: string,
     net_list: string[]
   },
   upload: number,
@@ -64,24 +66,32 @@ const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
   } = {
     downloadTotal: 0,
     uploadTotal: 0,
-    connections: Object.entries(conn).map(([key, value]) => {
-      const src = parseAddress(value.ctx.source_address);
-      const dst = parseAddress(value.addr);
+    connections: Object.entries(conn).map(([key, {
+      protocol,
+      ctx,
+      addr,
+      upload,
+      download,
+      start_time
+    }]) => {
+      const src = parseAddress(ctx.src_socket_addr);
+      const dst = parseAddress(addr);
+      const [server, ...list] = ctx.net_list;
 
       return {
         id: key,
-        upload: value.upload,
-        download: value.download,
-        start: new Date(value.start_time * 1000).toUTCString(),
-        chains: [...value.ctx.net_list].reverse(),
+        upload: upload,
+        download: download,
+        start: new Date(start_time * 1000).toUTCString(),
+        chains: list.reverse(),
         metadata: {
-          network: value.protocol,
-          type: 'Unknown',
+          network: protocol,
+          type: server as any,
           sourceIP: src.host,
           sourcePort: src.port,
           destinationIP: dst.host,
           destinationPort: dst.port,
-          host: dst.host,
+          host: ctx.dest_domain ? parseAddress(ctx.dest_domain).host : dst.host,
         },
         rule: 'RabbitDigger'
       }
