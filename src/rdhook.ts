@@ -8,6 +8,8 @@ const TypeMap = {
   select: 'Selector',
 }
 type ConfigNet = { type: 'select', list: string[], selected: number }
+  | { type: 'local' }
+  | { type: 'noop' }
 type ConfigBody = {
   net: Record<string, ConfigNet>,
 }
@@ -181,8 +183,19 @@ hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebS
 });
 
 const convertProxies = (config: ConfigBody) => {
+  const net = { ...config.net }
+  if (!net.local) {
+    net.local = {
+      type: 'local',
+    }
+  }
+  if (!net.noop) {
+    net.noop = {
+      type: 'noop',
+    }
+  }
   return Object.fromEntries(
-    Object.entries(config.net)
+    Object.entries(net)
       .map(([key, p]) => {
         const { type } = p
         if (p.type === 'select') {
@@ -204,9 +217,10 @@ const convertProxies = (config: ConfigBody) => {
   )
 }
 interface HookItem {
-  test: (url: string) => boolean
-  replace: (url: string) => Promise<string>
+  test: (url: string, method?: string) => boolean
+  replace: (url: string, body?: string) => Promise<string>
 }
+const ConfigMap = new Map<string, ConfigBody>();
 const HookMap: HookItem[] = [{
   test: (url: string) => new URL(url).pathname === '/configs',
   replace: async () => JSON.stringify({
@@ -237,6 +251,7 @@ const HookMap: HookItem[] = [{
     const uo = new URL(url);
     uo.pathname = '/api/config'
     const config: ConfigBody = await (await fetch(uo.toString())).json();
+    ConfigMap.set(uo.origin, config)
     const resp = {
       proxies: convertProxies(config),
     }
@@ -270,13 +285,38 @@ const HookMap: HookItem[] = [{
     console.log('providers', resp, selector)
     return JSON.stringify(resp)
   },
+}, {
+  test: (url: string, method) => method === 'PUT' && /\/proxies\/(.*)/.test(url),
+  replace: async (url, body) => {
+    const { name } = JSON.parse(body)
+    const net_name = /\/proxies\/(.*)/.exec(url)[1]
+    const uo = new URL(url);
+    const config = ConfigMap.get(uo.origin)
+    const opt = config.net[net_name]
+    if (opt.type !== 'select') throw new Error('select not select')
+    uo.pathname = '/api/net'
+    await fetch(uo.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        net_name,
+        opt: {
+          ...opt,
+          selected: opt.list.indexOf(name),
+        },
+      }),
+    });
+    return ''
+  }
 }]
 
-hookFunction(window, 'fetch', async ({ next }, url) => {
+hookFunction(window, 'fetch', async ({ next }, url, { method, body } = {}) => {
   if (typeof url === 'string') {
     for (const { test, replace } of HookMap) {
-      if (test(url)) {
-        return new Response(await replace(url))
+      if (test(url, method)) {
+        return new Response(await replace(url, body as string))
       }
     }
   }
