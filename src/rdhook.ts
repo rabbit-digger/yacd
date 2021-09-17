@@ -2,6 +2,15 @@ import { applyPatch } from 'fast-json-patch';
 
 import { ConnectionItem } from './api/connections';
 
+// From rd to clash
+const TypeMap = {
+  shadowsocks: 'Shadowsocks',
+  select: 'Selector',
+}
+type ConfigNet = { type: 'select', list: string[], selected: number }
+type ConfigBody = {
+  net: Record<string, ConfigNet>,
+}
 type ConnectionBody = {
   total_upload: number,
   total_download: number,
@@ -170,9 +179,33 @@ hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebS
   }
   return next()
 });
+
+const convertProxies = (config: ConfigBody) => {
+  return Object.fromEntries(
+    Object.entries(config.net)
+      .map(([key, p]) => {
+        const { type } = p
+        if (p.type === 'select') {
+          return {
+            name: key,
+            type: 'Selector',
+            history: [],
+            all: p.list,
+            now: p.list[p.selected],
+          }
+        }
+        return {
+          name: key,
+          type: TypeMap[type] || type,
+          history: [],
+        }
+      })
+      .map(i => [i.name, i])
+  )
+}
 interface HookItem {
   test: (url: string) => boolean
-  replace: () => Promise<string>
+  replace: (url: string) => Promise<string>
 }
 const HookMap: HookItem[] = [{
   test: (url: string) => new URL(url).pathname === '/configs',
@@ -199,18 +232,51 @@ const HookMap: HookItem[] = [{
     }],
   }),
 }, {
-  test: (url: string) => new URL(url).pathname === '/version',
-  replace: async () => JSON.stringify({
-    version: 'rabbit-digger 0.1.0',
-    premium: false,
-  }),
+  test: (url: string) => new URL(url).pathname === '/proxies',
+  replace: async (url) => {
+    const uo = new URL(url);
+    uo.pathname = '/api/config'
+    const config: ConfigBody = await (await fetch(uo.toString())).json();
+    const resp = {
+      proxies: convertProxies(config),
+    }
+    console.log('proxies', resp)
+    return JSON.stringify(resp)
+  },
+}, {
+  test: (url: string) => new URL(url).pathname === '/providers/proxies',
+  replace: async (url) => {
+    const uo = new URL(url);
+    uo.pathname = '/api/config'
+    const config: ConfigBody = await (await fetch(uo.toString())).json();
+    const proxy = convertProxies(config);
+    const selector = Object.values(proxy).filter(i => i.type === 'Selector')
+    const resp = {
+      providers: {
+        default: {
+          name: 'default',
+          proxies: Object.values(proxy),
+          type: 'Proxy',
+          vehicleType: "Compatible",
+        },
+        ...Object.fromEntries(selector.map(i => [i.name, ({
+          name: i.name,
+          proxies: i.all.map(k => proxy[k]),
+          type: 'Proxy',
+          vehicleType: "Compatible",
+        })])),
+      },
+    };
+    console.log('providers', resp, selector)
+    return JSON.stringify(resp)
+  },
 }]
 
 hookFunction(window, 'fetch', async ({ next }, url) => {
   if (typeof url === 'string') {
     for (const { test, replace } of HookMap) {
       if (test(url)) {
-        return new Response(await replace())
+        return new Response(await replace(url))
       }
     }
   }
