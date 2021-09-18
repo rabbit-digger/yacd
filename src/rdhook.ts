@@ -90,19 +90,7 @@ const rdConn2Traffic = (self: WebSocket, resp: ConnectionResp) => {
     down: conn.total_download - lastTotal.total_download,
   }
 }
-const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
-  const last = LastFull.get(self)
-  let conn: ConnectionBody;
-  if (resp.patch && last) {
-    conn = applyPatch(last, resp.patch).newDocument;
-  } else if (resp.full) {
-    conn = resp.full;
-  } else {
-    console.log(resp, last)
-    throw new TypeError('Wrong state');
-  }
-  LastFull.set(self, conn);
-
+const rdConnBody2ClashConn = (conn: ConnectionBody) => {
   const clashData: {
     downloadTotal: number,
     uploadTotal: number,
@@ -143,6 +131,21 @@ const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
   };
 
   return clashData;
+}
+const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
+  const last = LastFull.get(self)
+  let conn: ConnectionBody;
+  if (resp.patch && last) {
+    conn = applyPatch(last, resp.patch).newDocument;
+  } else if (resp.full) {
+    conn = resp.full;
+  } else {
+    console.log(resp, last)
+    throw new TypeError('Wrong state');
+  }
+  LastFull.set(self, conn);
+
+  return rdConnBody2ClashConn(conn);
 }
 window.WebSocket = new Proxy(OriginWebsocket, {
   construct(Target, [url, protocol]) {
@@ -256,6 +259,22 @@ const HookMap: HookItem[] = [{
       proxies: convertProxies(config),
     }
     console.log('proxies', resp)
+    return JSON.stringify(resp)
+  },
+}, {
+  test: (url: string, method?: string) => method === 'DELETE' && new URL(url).pathname.startsWith('/connections'),
+  replace: async (url) => {
+    const uo = new URL(url);
+    uo.pathname = uo.pathname.replace('/connections', '/api/connection')
+    await fetch(uo.toString(), { method: 'DELETE' })
+    return ''
+  },
+}, {
+  test: (url: string) => new URL(url).pathname === '/connections',
+  replace: async (url) => {
+    const uo = new URL(url);
+    uo.pathname = '/api/connection'
+    const resp = rdConnBody2ClashConn(await (await fetch(uo.toString())).json());
     return JSON.stringify(resp)
   },
 }, {
