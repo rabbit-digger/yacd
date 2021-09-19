@@ -58,17 +58,17 @@ function filterConns(conns: FormattedConn[], keyword: string) {
   return !keyword
     ? conns
     : conns.filter((conn) =>
-        [
-          conn.host,
-          conn.sourceIP,
-          conn.sourcePort,
-          conn.destinationIP,
-          conn.chains,
-          conn.rule,
-          conn.type,
-          conn.network,
-        ].some((field) => hasSubstring(field, keyword))
-      );
+      [
+        conn.host,
+        conn.sourceIP,
+        conn.sourcePort,
+        conn.destinationIP,
+        conn.chains,
+        conn.rule,
+        conn.type,
+        conn.network,
+      ].some((field) => hasSubstring(field, keyword))
+    );
 }
 
 function formatConnectionDataItem(
@@ -118,7 +118,7 @@ function renderTableOrPlaceholder(conns: FormattedConn[]) {
 }
 
 function ConnQty({ qty }) {
-  return qty < 100 ? '' + qty : '99+';
+  return qty < 1000 ? '' + qty : '999+';
 }
 
 function Conn({ apiConfig }) {
@@ -237,8 +237,8 @@ function Conn({ apiConfig }) {
                 mainButtonStyles={
                   isRefreshPaused
                     ? {
-                        background: '#e74c3c',
-                      }
+                      background: '#e74c3c',
+                    }
                     : {}
                 }
                 style={fabPosition}
