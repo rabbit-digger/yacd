@@ -7,7 +7,7 @@ const TypeMap = {
   shadowsocks: 'Shadowsocks',
   select: 'Selector',
 }
-type ConfigNet = { type: 'select', list: string[], selected: number }
+type ConfigNet = { type: 'select', list: string[], selected: string }
   | { type: 'local' }
   | { type: 'noop' }
 type ConfigBody = {
@@ -207,7 +207,7 @@ const convertProxies = (config: ConfigBody) => {
             type: 'Selector',
             history: [],
             all: p.list,
-            now: p.list[p.selected],
+            now: p.selected,
           }
         }
         return {
@@ -321,10 +321,7 @@ const HookMap: HookItem[] = [{
       },
       body: JSON.stringify({
         net_name,
-        opt: {
-          ...opt,
-          selected: opt.list.indexOf(name),
-        },
+        selected: name,
       }),
     });
     return ''
