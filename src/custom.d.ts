@@ -25,11 +25,11 @@ declare const process = {
 };
 
 declare module 'react-table' {
-  interface TableOptions {}
+  interface TableOptions { }
 
-  interface Empty {}
+  interface Empty { }
 
-  interface SortByToggleProps {}
+  interface SortByToggleProps { }
 
   interface Header {
     getHeaderProps(p: SortByToggleProps): { role?: string };
@@ -53,6 +53,7 @@ declare module 'react-table' {
 
   interface Row {
     cells: Cell[];
+    original: any;
   }
 
   export function useTable(

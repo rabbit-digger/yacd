@@ -1,6 +1,6 @@
 import cx from 'clsx';
 import { formatDistance } from 'date-fns';
-import React from 'react';
+import React, { Fragment } from 'react';
 import { ChevronDown } from 'react-feather';
 import { useSortBy, useTable } from 'react-table';
 
@@ -81,20 +81,22 @@ function Table({ data }) {
 
             {rows.map((row, i) => {
               prepareRow(row);
-              return row.cells.map((cell, j) => {
-                return (
-                  <div
-                    {...cell.getCellProps()}
-                    className={cx(
-                      s.td,
-                      i % 2 === 0 ? s.odd : false,
-                      j >= 1 && j <= 4 ? s.du : false
-                    )}
-                  >
-                    {renderCell(cell)}
-                  </div>
-                );
-              });
+              return <Fragment key={row.original.id}>
+                {row.cells.map((cell, j) => {
+                  return (
+                    <div
+                      {...cell.getCellProps()}
+                      className={cx(
+                        s.td,
+                        i % 2 === 0 ? s.odd : false,
+                        j >= 1 && j <= 4 ? s.du : false
+                      )}
+                    >
+                      {renderCell(cell)}
+                    </div>
+                  );
+                })}
+              </Fragment>;
             })}
           </div>
         );
