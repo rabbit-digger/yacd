@@ -59,7 +59,7 @@ const parseAddress = (s: string) => {
   return { host, port };
 }
 
-const WsType = new WeakMap<WebSocket, 'connections' | 'traffic' | undefined>();
+const WsType = new WeakMap<WebSocket, 'connections' | 'traffic' | 'logs' | undefined>();
 const LastFull = new WeakMap<WebSocket, ConnectionBody>();
 const LastTotal = new WeakMap<WebSocket, { total_upload: number, total_download: number }>();
 const OriginWebsocket = WebSocket;
@@ -147,6 +147,32 @@ const rdConn2ClashConn = (self: WebSocket, resp: ConnectionResp) => {
 
   return rdConnBody2ClashConn(conn);
 }
+// INFO tcp_connect{self=RunningServerNet { server_name: "socks5" } addr=Domain("baidu.cn", 80)}: rabbit_digger: Connected ctx=Context { src_socket_addr: String("127.0.0.1:42458"), dest_domain: String("baidu.cn:80") }
+
+const obj2str = (o: any) => {
+  return Object.keys(o).length > 0 ? JSON.stringify(o) : 0
+}
+const rdLog2ClashLog = ({
+  level,
+  fields: { message, ...fields },
+  target,
+  span: { name, ...span },
+}: {
+  timestamp: string,
+  level: string,
+  fields: Record<string, any>,
+  target: string,
+  span: Record<string, any>,
+  spans: Record<string, any>[],
+}): {
+  payload: string;
+  type: string;
+} => {
+  return {
+    type: level,
+    payload: `${name}${obj2str(span)}: ${target}: ${message} ${obj2str(fields)}`,
+  }
+}
 window.WebSocket = new Proxy(OriginWebsocket, {
   construct(Target, [url, protocol]) {
     const newUrl = new URL(url);
@@ -160,6 +186,10 @@ window.WebSocket = new Proxy(OriginWebsocket, {
       newUrl.pathname = '/api/connection';
       newUrl.search = '?without_connections=true';
       type = 'traffic';
+    }
+    if (newUrl.pathname === '/logs') {
+      newUrl.pathname = '/api/log';
+      type = 'logs';
     }
     const self = new Target(newUrl, protocol);
     WsType.set(self, type);
@@ -177,6 +207,17 @@ hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebS
           callback({ data: JSON.stringify(resp) } as any);
         } else if (WsType.get(this) === 'traffic') {
           const resp = rdConn2Traffic(this, JSON.parse(e.data))
+          callback({ data: JSON.stringify(resp) } as any);
+        }
+      }
+    });
+  }
+  if (pathname === '/api/log' && event === 'message') {
+    return origin.call(this, 'message', (e: MessageEvent) => {
+      if (typeof callback === 'function') {
+        if (WsType.get(this) === 'logs') {
+          const resp = rdLog2ClashLog(JSON.parse(e.data));
+          console.log('clash log', resp)
           callback({ data: JSON.stringify(resp) } as any);
         }
       }
