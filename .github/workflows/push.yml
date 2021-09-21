@@ -37,8 +37,6 @@ jobs:
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')
         id: create_release
         uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
@@ -51,8 +49,6 @@ jobs:
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/')
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./yacd.tar.xz
@@ -62,7 +58,6 @@ jobs:
       - name: Push to gh-pages
         if: github.event_name == 'push' && (startsWith(github.event.ref, 'refs/tags/') || github.event.ref == 'refs/heads/publish')
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
           PUBLISH_DIR: public
           BRANCH: gh-pages
         run: |
@@ -75,60 +70,3 @@ jobs:
           git status
           git commit -m "Push to gh-pages"
           git push -f https://$GITHUB_ACTOR:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git HEAD:$BRANCH
-
-      - name: Send Notification
-        uses: haishanh/actions-telegram-notification@v1
-        if: ${{ always() }}
-        with:
-          notification-token: ${{ secrets.TG_NOTIFICATION_TOKEN }}
-          job-status: ${{ job.status }}
-
-  docker:
-    needs: install
-    runs-on: ubuntu-20.04
-    if: github.event_name == 'push' && (startsWith(github.event.ref, 'refs/tags/') || startsWith(github.event.ref, 'refs/heads/v0.'))
-    steps:
-      - uses: actions/checkout@v2.3.4
-
-      - name: Docker meta
-        id: docker_meta
-        uses: docker/metadata-action@v3.5.0
-        with:
-          images: haishanh/yacd
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1.2.0
-
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v1
-        with:
-          version: latest
-
-      - name: Builder instance name
-        run: echo ${{ steps.buildx.outputs.name }}
-      - name: Available platforms
-        run: echo ${{ steps.buildx.outputs.platforms }}
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1.10.0
-        with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
-          push: true
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
-
-      - name: Send Notification
-        uses: haishanh/actions-telegram-notification@v1
-        if: ${{ always() }}
-        with:
-          notification-token: ${{ secrets.TG_NOTIFICATION_TOKEN }}
-          job-status: ${{ job.status }}
