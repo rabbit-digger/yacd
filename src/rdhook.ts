@@ -367,6 +367,21 @@ const HookMap: HookItem[] = [{
     });
     return ''
   }
+}, {
+  test: (url: string) => /\/proxies\/(.*)\/delay/.test(url),
+  replace: async (url) => {
+    const net_name = /\/proxies\/(.*)\/delay/.exec(url)[1]
+    const uo = new URL(url);
+    uo.pathname = `/api/delay`;
+    uo.search += `&net_name=${encodeURIComponent(net_name)}`
+    const resp: {
+      connect: number,
+      response: number,
+    } = await (await fetch(uo.toString())).json();
+    return JSON.stringify({
+      delay: resp.response,
+    });
+  }
 }]
 
 hookFunction(window, 'fetch', async ({ next }, url, { method, body } = {}) => {
