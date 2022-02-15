@@ -106,7 +106,10 @@ const rdConnBody2ClashConn = (conn: ConnectionBody) => {
       download,
       start_time
     }]) => {
-      const src = parseAddress(ctx.src_socket_addr);
+      const src = ctx.src_socket_addr ? parseAddress(ctx.src_socket_addr) : {
+        host: 'N',
+        port: 'A',
+      };
       const dst = parseAddress(addr);
       const [server, ...list] = ctx.net_list;
 
