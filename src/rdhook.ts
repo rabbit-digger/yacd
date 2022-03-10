@@ -181,17 +181,17 @@ window.WebSocket = new Proxy(OriginWebsocket, {
     const newUrl = new URL(url);
     let type = undefined;
     if (newUrl.pathname === '/connections') {
-      newUrl.pathname = '/api/connection';
+      newUrl.pathname = '/api/stream/connection';
       newUrl.search = '?patch=true';
       type = 'connections';
     }
     if (newUrl.pathname === '/traffic') {
-      newUrl.pathname = '/api/connection';
+      newUrl.pathname = '/api/stream/connection';
       newUrl.search = '?without_connections=true';
       type = 'traffic';
     }
     if (newUrl.pathname === '/logs') {
-      newUrl.pathname = '/api/log';
+      newUrl.pathname = '/api/stream/logs';
       type = 'logs';
     }
     const self = new Target(newUrl, protocol);
@@ -202,7 +202,7 @@ window.WebSocket = new Proxy(OriginWebsocket, {
 });
 hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebSocket, { next, origin }, event, callback) {
   const { pathname } = new URL(this.url);
-  if (pathname === '/api/connection' && event === 'message') {
+  if (pathname === '/api/stream/connection' && event === 'message') {
     return origin.call(this, 'message', (e: MessageEvent) => {
       if (typeof callback === 'function') {
         if (WsType.get(this) === 'connections') {
@@ -215,7 +215,7 @@ hookFunction(OriginWebsocket.prototype, 'addEventListener', function (this: WebS
       }
     });
   }
-  if (pathname === '/api/log' && event === 'message') {
+  if (pathname === '/api/stream/logs' && event === 'message') {
     return origin.call(this, 'message', (e: MessageEvent) => {
       if (typeof callback === 'function') {
         if (WsType.get(this) === 'logs') {
