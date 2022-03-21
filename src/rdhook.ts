@@ -357,7 +357,7 @@ const HookMap: HookItem[] = [{
     const config = ConfigMap.get(uo.origin)
     const opt = config.net[net_name]
     if (opt.type !== 'select') throw new Error('select not select')
-    uo.pathname = `/api/net/${net_name}`
+    uo.pathname = `/api/net/${encodeURIComponent(net_name)}`
     await fetch(uo.toString(), {
       method: 'POST',
       headers: {
@@ -374,7 +374,7 @@ const HookMap: HookItem[] = [{
   replace: async (url) => {
     const net_name = /\/proxies\/(.*)\/delay/.exec(url)[1]
     const uo = new URL(url);
-    uo.pathname = `/api/net/${net_name}/delay`;
+    uo.pathname = `/api/net/${encodeURIComponent(net_name)}/delay`;
     const resp: {
       connect: number,
       response: number,
